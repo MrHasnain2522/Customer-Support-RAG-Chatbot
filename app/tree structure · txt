@@ -1,0 +1,120 @@
+backend-enhanced-final/
+│
+├── .env                                    ← ADD YOUR API KEYS
+├── requirements.txt
+├── setup.sh
+├── Dockerfile
+│
+├── knowledge_base/                         ← 🔥 EXTERNAL KNOWLEDGE BASE
+│   └── documents/                          ← 🔥 PUT YOUR FILES HERE
+│       ├── ai_overview.md
+│       ├── python_guide.md
+│       ├── rag_explained.md
+│       └── [your-document.pdf]             ← Add your documents
+│
+├── vector_stores/                          ← Auto-created
+│   ├── faiss/
+│   │   ├── index.faiss
+│   │   └── metadata.pkl
+│   └── chroma/
+│       └── chroma.sqlite3
+│
+├── instance/                               ← Auto-created
+│   └── app.db
+│
+├── logs/                                   ← Auto-created
+│   └── app.log
+│
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── config.py
+│   │
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── chat_routes.py
+│   │   ├── health_routes.py
+│   │   └── kb_routes.py
+│   │
+│   ├── rag/                                ← 🔥 RAG SYSTEM
+│   │   ├── __init__.py
+│   │   ├── embeddings.py                   ← Main embedding service
+│   │   ├── huggingface_api_embeddings.py   ← HF API support
+│   │   ├── retriever.py                    ← Retrieve context
+│   │   ├── generator.py                    ← Generate responses
+│   │   ├── document_loader.py              ← Load from knowledge_base/
+│   │   ├── faiss_store.py                  ← FAISS vector DB
+│   │   └── chroma_store.py                 ← ChromaDB
+│   │
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── user.py
+│   │   ├── conversation.py
+│   │   ├── message.py
+│   │   └── greeting.py
+│   │
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── chat_service.py
+│   │   └── greeting_service.py
+│   │
+│   ├── schemas/
+│   │   ├── __init__.py
+│   │   ├── chat_schema.py
+│   │   └── greeting_schema.py
+│   │
+│   ├── db/
+│   │   ├── __init__.py
+│   │   ├── database.py
+│   │   ├── init_db.py
+│   │   └── migrations/
+│   │       ├── __init__.py
+│   │       └── versions/
+│   │           └── __init__.py
+│   │
+│   └── utils/
+│       ├── __init__.py
+│       ├── logger.py
+│       └── json_utils.py
+│
+└── tests/
+    ├── __init__.py
+    ├── conftest.py
+    ├── test_chat_api.py
+    ├── test_database.py
+    └── test_rag.py
+
+
+═══════════════════════════════════════════
+🔥 ANSWER TO YOUR QUESTION:
+═══════════════════════════════════════════
+
+knowledge_base/ folder is at ROOT LEVEL
+(same level as app/, tests/, .env)
+
+NOT inside app/rag/
+
+Why at root?
+- Easy to access
+- Easy to add files
+- Separate from code
+- Standard practice
+
+═══════════════════════════════════════════
+HOW TO ADD YOUR DOCUMENTS:
+═══════════════════════════════════════════
+
+1. Go to: backend-enhanced-final/knowledge_base/documents/
+
+2. Add your files:
+   - PDFs: your-doc.pdf
+   - Text: your-doc.txt
+   - Markdown: your-doc.md
+   - Word: your-doc.docx
+
+3. Reload:
+   curl -X POST http://localhost:5000/api/knowledge-base/reload
+
+Done!
+
+═══════════════════════════════════════════
