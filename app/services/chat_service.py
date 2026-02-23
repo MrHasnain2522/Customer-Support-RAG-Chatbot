@@ -1,5 +1,6 @@
 """
 Chat Service with JSON storage for PostgreSQL
+Enhanced with source deduplication
 Replace: app/services/chat_service.py
 """
 import uuid
@@ -24,7 +25,7 @@ class ChatService:
     
     def process_message(self, user_id: str, message: str, conversation_id: str = None):
         """
-        Process chat message with JSON storage
+        Process chat message with JSON storage and deduplicated sources
         
         Args:
             user_id: User identifier
@@ -32,7 +33,7 @@ class ChatService:
             conversation_id: Optional conversation ID
             
         Returns:
-            dict: Response data
+            dict: Response data (sources NOT exposed to frontend)
         """
         try:
             # Get or create user
@@ -57,25 +58,28 @@ class ChatService:
             )
             
             # Get conversation history
-            history = conversation.get_last_n_messages(5)
+            history = conversation.get_last_n_messages(10)  # Increased from 5 for better context
             
             # Retrieve context from RAG
             context = self.retriever.retrieve(message, history)
             
-            # Extract sources
+            # Log context for debugging
+            logger.debug(f"RAW CONTEXT SAMPLE: {str(context)[:300] if context else 'None'}")
+            
+            # Extract and deduplicate sources (stored internally, NOT sent to frontend)
             sources = []
             if context:
-                sources = self._extract_sources(context)
+                sources = self._extract_and_deduplicate_sources(context)
             
             # Generate response
             response = self.generator.generate(message, context, history)
             
-            # Add assistant message to JSON
+            # Add assistant message to JSON with deduplicated sources (stored in DB only)
             conversation.add_message(
                 role='assistant',
                 content=response,
                 context_used=bool(context),
-                sources=sources
+                sources=sources  # Stored in DB for internal use, not returned to frontend
             )
             
             # Update title if first exchange
@@ -88,35 +92,69 @@ class ChatService:
             
             logger.info(f"Processed message for conversation {conversation.conversation_id}")
             
+            # FIX: 'sources' removed from response — PDF filenames no longer exposed to frontend
             return {
                 'response': response,
                 'conversation_id': conversation.conversation_id,
-                'timestamp': current_time,  # Return datetime object, not string
-                'context_used': bool(context),
-                'sources': sources
+                'timestamp': current_time,
+                'context_used': bool(context)
             }
             
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
             raise
     
-    def _extract_sources(self, context: str):
-        """Extract source information from context"""
-        sources = []
+    def _extract_and_deduplicate_sources(self, context: str):
+        """
+        Extract source information from context and deduplicate by filename
+        Keeps only the highest relevance score for each unique file
+        
+        Args:
+            context: Retrieved context string with source citations
+            
+        Returns:
+            list: Deduplicated sources sorted by relevance (max 3)
+        """
         if not context:
-            return sources
+            return []
         
         # Parse: [Source 1: file.pdf (Relevance: 0.85)]
         pattern = r'\[Source \d+: (.+?) \(Relevance: ([\d.]+)\)\]'
         matches = re.findall(pattern, context)
         
+        # Dictionary to track highest relevance per file
+        seen_files = {}
+        
         for filename, relevance in matches:
-            sources.append({
-                'filename': filename.strip(),
-                'relevance': float(relevance)
-            })
+            filename = filename.strip()
+            relevance_score = float(relevance)
+            
+            # Keep only the highest relevance score for each file
+            if filename not in seen_files:
+                seen_files[filename] = relevance_score
+            else:
+                if relevance_score > seen_files[filename]:
+                    seen_files[filename] = relevance_score
+        
+        # Convert to list of dicts and sort by relevance
+        sources = [
+            {'filename': filename, 'relevance': relevance}
+            for filename, relevance in seen_files.items()
+        ]
+        
+        # Sort by relevance (highest first) and limit to top 3
+        sources = sorted(sources, key=lambda x: x['relevance'], reverse=True)[:3]
+        
+        logger.info(f"Deduplicated {len(matches)} sources to {len(sources)} unique sources")
         
         return sources
+    
+    def _extract_sources(self, context: str):
+        """
+        DEPRECATED: Use _extract_and_deduplicate_sources instead
+        Legacy method kept for backward compatibility
+        """
+        return self._extract_and_deduplicate_sources(context)
     
     def get_conversation_history(self, conversation_id: str):
         """Get full conversation history"""

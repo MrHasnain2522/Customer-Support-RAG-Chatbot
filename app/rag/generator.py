@@ -1,7 +1,11 @@
 """
 Response Generator - Generates responses using LLM
+Fixed:
+  1. Updated Anthropic model from claude-3-sonnet-20240229 -> claude-3-5-sonnet-20241022
+  2. Source citation tags stripped from context before sending to LLM
 """
 import os
+import re
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -40,6 +44,29 @@ class ResponseGenerator:
             logger.error(f"Error generating response: {str(e)}")
             return "I apologize, but I encountered an error. Please try again."
     
+    def _clean_context(self, context: str) -> str:
+        """
+        FIX: Strip source citation tags from context before sending to LLM.
+        Prevents tags like [Source 1: file.pdf (Relevance: 0.85)] from
+        leaking into LLM responses.
+        
+        Args:
+            context: Raw context string with source citations
+            
+        Returns:
+            Clean context string without citation tags
+        """
+        if not context:
+            return context
+        
+        # Remove [Source N: filename.pdf (Relevance: X.XX)] tags
+        cleaned = re.sub(r'\[Source \d+: .+? \(Relevance: [\d.]+\)\]', '', context)
+        
+        # Clean up extra whitespace/newlines left behind
+        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
+        
+        return cleaned
+    
     def _generate_with_llm(self, query: str, context: str = None, conversation_history: list = None):
         """Generate using LLM API"""
         try:
@@ -71,7 +98,7 @@ class ResponseGenerator:
             response = client.chat.completions.create(
                 model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=800,  # Increased for professional responses
+                max_tokens=800,
                 temperature=float(os.getenv('OPENAI_TEMPERATURE', '0.7'))
             )
             
@@ -89,8 +116,8 @@ class ResponseGenerator:
             client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
             
             message = client.messages.create(
-                model="claude-3-sonnet-20240229",
-                max_tokens=500,
+                model="claude-3-5-sonnet-20241022",  # FIX: was claude-3-sonnet-20240229 (invalid/deprecated)
+                max_tokens=800,  # FIX: increased from 500 to match OpenAI quality
                 messages=[{"role": "user", "content": prompt}]
             )
             
@@ -117,7 +144,8 @@ class ResponseGenerator:
             return "Goodbye! Feel free to come back if you need help."
         
         elif context:
-            return f"Based on the information: {context}\n\nIs there anything specific you'd like to know?"
+            clean = self._clean_context(context)
+            return f"Based on the information: {clean}\n\nIs there anything specific you'd like to know?"
         
         else:
             return "I understand. Could you provide more details so I can assist you better?"
@@ -134,9 +162,10 @@ class ResponseGenerator:
             "retail professional - not a robot."
         )
         
-        # Available products context
+        # FIX: Clean source tags from context before injecting into prompt
         if context:
-            prompt_parts.append(f"\n=== AVAILABLE PRODUCTS ===\n{context}\n")
+            clean_context = self._clean_context(context)
+            prompt_parts.append(f"\n=== AVAILABLE PRODUCTS ===\n{clean_context}\n")
         
         # Conversation history for context
         if conversation_history:
