@@ -7,7 +7,6 @@ import numpy as np
 from app.rag.embeddings import EmbeddingService
 from app.rag.document_loader import DocumentLoader
 from app.utils.logger import get_logger
-
 logger = get_logger(__name__)
 
 
