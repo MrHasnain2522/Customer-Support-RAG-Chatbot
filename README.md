@@ -142,6 +142,16 @@ psql -U postgres
 -- Create database
 CREATE DATABASE rag_chatbot;
 
+--see result in pgadmin
+SELECT 
+    conversation_id,
+    user_id,
+    title,
+    jsonb_pretty(messages_json) as messages,
+    created_at
+FROM conversations
+ORDER BY created_at DESC;
+
 -- Exit
 \q
 ```
