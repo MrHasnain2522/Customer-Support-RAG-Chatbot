@@ -1,5 +1,5 @@
 """
-RAG Retriever - Retrieves relevant context from vector database
+RAG Retriever - Optimized for Catalog Queries and Policy Details
 """
 import os
 from typing import List, Dict, Optional
@@ -7,19 +7,14 @@ import numpy as np
 from app.rag.embeddings import EmbeddingService
 from app.rag.document_loader import DocumentLoader
 from app.utils.logger import get_logger
+
 logger = get_logger(__name__)
 
-
 class RAGRetriever:
-    """Retriever with vector database support"""
+    """Retriever with Vector DB support and Dynamic Search Depth"""
     
     def __init__(self, vector_db_type: str = None):
-        """
-        Initialize retriever
-        
-        Args:
-            vector_db_type: 'faiss', 'chroma', or 'none'
-        """
+        """Initialize retriever and load configured vector store"""
         self.embedding_service = EmbeddingService()
         self.document_loader = DocumentLoader()
         
@@ -35,31 +30,22 @@ class RAGRetriever:
             from app.rag.chroma_store import ChromaVectorStore
             self.vector_store = ChromaVectorStore()
             logger.info("Using ChromaDB")
-        else:
-            logger.warning("No vector database configured")
         
-        # Auto-load knowledge base
+        # Auto-load knowledge base if enabled
         if os.getenv('AUTO_RELOAD_KNOWLEDGE_BASE', 'True').lower() == 'true':
             self.load_knowledge_base()
     
     def load_knowledge_base(self, force_reload: bool = False):
-        """
-        Load documents from knowledge_base/documents/
-        
-        Args:
-            force_reload: Force reload even if already loaded
-        """
+        """Load and index documents from the knowledge base directory"""
         try:
-            # Check if already loaded
             if not force_reload and self.vector_store:
                 stats = self.vector_store.get_stats()
                 if stats.get('total_documents', 0) > 0:
                     logger.info(f"Knowledge base already loaded: {stats}")
                     return
             
-            # Load and chunk documents
-            chunk_size = int(os.getenv('CHUNK_SIZE', 500))
-            chunk_overlap = int(os.getenv('CHUNK_OVERLAP', 50))
+            chunk_size = int(os.getenv('CHUNK_SIZE', 700))
+            chunk_overlap = int(os.getenv('CHUNK_OVERLAP', 100))
             
             documents = self.document_loader.load_and_chunk_documents(
                 chunk_size=chunk_size,
@@ -67,129 +53,87 @@ class RAGRetriever:
             )
             
             if not documents:
-                logger.warning("No documents found in knowledge base")
+                logger.warning("No documents found to load")
                 return
             
-            # Extract texts and metadata
             texts = [doc['text'] for doc in documents]
             metadatas = [doc['metadata'] for doc in documents]
             
-            # Generate embeddings
-            logger.info(f"Generating embeddings for {len(texts)} chunks...")
+            logger.info(f"Indexing {len(texts)} chunks...")
             embeddings = self.embedding_service.encode(texts)
             
-            # Add to vector store
             if self.vector_db_type == 'faiss':
                 self.vector_store.add_documents(embeddings, texts, metadatas)
                 self.vector_store.save()
             elif self.vector_db_type == 'chroma':
-                embeddings_list = embeddings.tolist()
-                self.vector_store.add_documents(embeddings_list, texts, metadatas)
-            
-            stats = self.vector_store.get_stats()
-            logger.info(f"Knowledge base loaded: {stats}")
+                self.vector_store.add_documents(embeddings.tolist(), texts, metadatas)
+                
+            logger.info(f"Success: {self.vector_store.get_stats()}")
             
         except Exception as e:
-            logger.error(f"Error loading knowledge base: {str(e)}", exc_info=True)
-    
+            logger.error(f"Failed to load knowledge base: {str(e)}", exc_info=True)
+
     def retrieve(self, query: str, conversation_history: list = None, top_k: int = None) -> Optional[str]:
         """
-        Retrieve relevant context
-        
-        Args:
-            query: User query
-            conversation_history: Previous messages
-            top_k: Number of documents to retrieve
-            
-        Returns:
-            Retrieved context or None
+        Retrieve context with increased depth for policies and lists.
         """
         try:
             if not self.vector_store:
-                logger.warning("No vector store configured")
                 return None
             
-            # Get parameters
+            # 1. Broad Search Detection
+            # If the user asks for colors, lists, or policies, we pull more chunks.
+            broad_keywords = ['list', 'all', 'every', 'color', 'refund', 'policy', 'return', 'exchange']
+            is_broad_query = any(word in query.lower() for word in broad_keywords)
+            
+            # 2. Set Dynamic Top-K
             if top_k is None:
-                top_k = int(os.getenv('TOP_K_RESULTS', 3))
+                base_k = int(os.getenv('TOP_K_RESULTS', 3))
+                # Pull significantly more chunks (10-12) if a broad list/policy is requested
+                top_k = base_k * 4 if is_broad_query else base_k
             
-            threshold = float(os.getenv('SIMILARITY_THRESHOLD', 0.3))
-            
-            # Generate query embedding
+            threshold = float(os.getenv('SIMILARITY_THRESHOLD', 0.25))
             query_embedding = self.embedding_service.encode(query)
             
-            # Search
+            # 3. Vector Search
             if self.vector_db_type == 'faiss':
                 results = self.vector_store.search(query_embedding, top_k, threshold)
             elif self.vector_db_type == 'chroma':
-                query_embedding_list = query_embedding.tolist()
-                results = self.vector_store.search(query_embedding_list, top_k, threshold)
+                results = self.vector_store.search(query_embedding.tolist(), top_k, threshold)
             else:
                 return None
             
             if not results:
-                logger.info("No relevant documents found")
                 return None
             
-            # Format context
+            # 4. Format Context for the LLM
             context_parts = []
             for i, result in enumerate(results, 1):
-                source = result.get('metadata', {}).get('filename', 'Unknown')
+                source = result.get('metadata', {}).get('filename', 'Catalog')
                 text = result['text']
-                score = result['score']
-                
-                context_parts.append(
-                    f"[Source {i}: {source} (Relevance: {score:.2f})]\n{text}"
-                )
+                context_parts.append(f"--- Document Snippet {i} (Source: {source}) ---\n{text}")
             
-            context = "\n\n".join(context_parts)
-            logger.info(f"Retrieved {len(results)} relevant documents")
-            
-            return context
+            logger.info(f"Retrieved {len(results)} chunks for query: {query}")
+            return "\n\n".join(context_parts)
             
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}", exc_info=True)
+            logger.error(f"Retrieval error: {str(e)}", exc_info=True)
             return None
-    
+
     def add_document(self, text: str, metadata: Dict = None):
-        """Add a single document"""
+        """Add a single text entry manually to the index"""
         try:
-            if not self.vector_store:
-                logger.warning("No vector store configured")
-                return
-            
-            # Generate embedding
+            if not self.vector_store: return
             embedding = self.embedding_service.encode(text)
             
-            # Add to vector store
             if self.vector_db_type == 'faiss':
-                self.vector_store.add_documents(
-                    embedding.reshape(1, -1), 
-                    [text], 
-                    [metadata] if metadata else None
-                )
+                self.vector_store.add_documents(embedding.reshape(1, -1), [text], [metadata])
                 self.vector_store.save()
             elif self.vector_db_type == 'chroma':
-                embedding_list = embedding.tolist()
-                self.vector_store.add_documents(
-                    [embedding_list], 
-                    [text], 
-                    [metadata] if metadata else None
-                )
-            
-            logger.info("Document added to knowledge base")
-            
+                self.vector_store.add_documents([embedding.tolist()], [text], [metadata])
         except Exception as e:
             logger.error(f"Error adding document: {str(e)}")
-    
-    def clear_knowledge_base(self):
-        """Clear knowledge base"""
-        if self.vector_store:
-            self.vector_store.clear()
-            logger.info("Knowledge base cleared")
-    
+
     def get_stats(self) -> Dict:
-        """Get knowledge base statistics"""
-        if self.vector_store:
-            return self.vector_store.get_stats()
-        return {'total_documents': 0}
+        """Return the current number of indexed chunks"""
+        return self.vector_store.get_stats() if self.vector_store else {'total_documents': 0}
