@@ -6,23 +6,26 @@ backend-enhanced-final/
 ├── Dockerfile
 │
 ├── knowledge_base/                         ← 🔥 EXTERNAL KNOWLEDGE BASE
-│   └── documents/                          ← 🔥 PUT YOUR FILES HERE
+│   └── documents/
 │       ├── ai_overview.md
 │       ├── python_guide.md
 │       ├── rag_explained.md
-│       └── [your-document.pdf]             ← Add your documents
+│       └── [your-document.pdf]
 │
-├── vector_stores/                          ← Auto-created
+├── audio_uploads/                          ← 🔥 NEW: TEMP AUDIO FILES
+│   └── .gitkeep
+│
+├── vector_stores/
 │   ├── faiss/
 │   │   ├── index.faiss
 │   │   └── metadata.pkl
 │   └── chroma/
 │       └── chroma.sqlite3
 │
-├── instance/                               ← Auto-created
+├── instance/
 │   └── app.db
 │
-├── logs/                                   ← Auto-created
+├── logs/
 │   └── app.log
 │
 ├── app/
@@ -34,17 +37,25 @@ backend-enhanced-final/
 │   │   ├── __init__.py
 │   │   ├── chat_routes.py
 │   │   ├── health_routes.py
-│   │   └── kb_routes.py
+│   │   ├── kb_routes.py
+│   │   └── stt_routes.py              ← 🔥 NEW: STT API ENDPOINT
 │   │
-│   ├── rag/                                ← 🔥 RAG SYSTEM
+│   ├── rag/
 │   │   ├── __init__.py
-│   │   ├── embeddings.py                   ← Main embedding service
-│   │   ├── huggingface_api_embeddings.py   ← HF API support
-│   │   ├── retriever.py                    ← Retrieve context
-│   │   ├── generator.py                    ← Generate responses
-│   │   ├── document_loader.py              ← Load from knowledge_base/
-│   │   ├── faiss_store.py                  ← FAISS vector DB
-│   │   └── chroma_store.py                 ← ChromaDB
+│   │   ├── embeddings.py
+│   │   ├── huggingface_api_embeddings.py
+│   │   ├── retriever.py
+│   │   ├── generator.py
+│   │   ├── document_loader.py
+│   │   ├── faiss_store.py
+│   │   └── chroma_store.py
+│   │
+│   ├── stt/                               ← 🔥 NEW: SPEECH-TO-TEXT MODULE
+│   │   ├── __init__.py
+│   │   ├── stt_service.py             ← 🔥 Core STT logic
+│   │   ├── huggingface_stt.py         ← 🔥 HF API (Whisper etc.)
+│   │   ├── audio_processor.py         ← 🔥 Audio format handler
+│   │   └── stt_schema.py              ← 🔥 Request/Response schema
 │   │
 │   ├── models/
 │   │   ├── __init__.py
@@ -82,7 +93,8 @@ backend-enhanced-final/
     ├── conftest.py
     ├── test_chat_api.py
     ├── test_database.py
-    └── test_rag.py
+    ├── test_rag.py
+    └── test_stt.py                        ← 🔥 NEW: STT TESTS
 
 
 ═══════════════════════════════════════════
