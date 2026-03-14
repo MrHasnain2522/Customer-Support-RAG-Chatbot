@@ -15,7 +15,6 @@ class Config:
     DEBUG       = os.getenv("DEBUG", "True").lower() == "true"
 
     # ── Database ───────────────────────────────
-    # ✅ Railway fix: replace postgres:// → postgresql://
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
         "sqlite:///instance/app.db"
@@ -27,10 +26,10 @@ class Config:
     # ── API Keys ───────────────────────────────
     OPENAI_API_KEY        = os.getenv("OPENAI_API_KEY")
     ANTHROPIC_API_KEY     = os.getenv("ANTHROPIC_API_KEY")
-    HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")  # ✅ NEW: STT
+    HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
 
     # ── RAG Configuration ──────────────────────
-    EMBEDDING_MODEL    = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    EMBEDDING_MODEL    = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")  # ✅ OpenAI
     MAX_CONTEXT_LENGTH = int(os.getenv("MAX_CONTEXT_LENGTH", 4000))
 
     # ── CORS ───────────────────────────────────
@@ -39,14 +38,14 @@ class Config:
 
 class DevelopmentConfig(Config):
     """Development configuration"""
-    DEBUG             = True
-    SQLALCHEMY_ECHO   = True
+    DEBUG           = True
+    SQLALCHEMY_ECHO = True
 
 
 class ProductionConfig(Config):
     """Production configuration — Railway"""
-    DEBUG             = False
-    SQLALCHEMY_ECHO   = False
+    DEBUG           = False
+    SQLALCHEMY_ECHO = False
 
     # ✅ Force PostgreSQL on Railway
     SQLALCHEMY_DATABASE_URI = os.getenv(
