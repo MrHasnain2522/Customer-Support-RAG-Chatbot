@@ -21,6 +21,3 @@ RUN mkdir -p instance logs audio_uploads vector_stores/faiss
 ENV FLASK_APP=app.main
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
-
-# ✅ FIXED: use shell form (not array form) so $PORT resolves
-CMD gunicorn "app:create_app()" --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --log-level info
