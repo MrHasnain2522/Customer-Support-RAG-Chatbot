@@ -18,6 +18,12 @@ COPY . .
 
 RUN mkdir -p instance logs audio_uploads vector_stores/faiss
 
+# ✅ Make start script executable
+RUN chmod +x start.sh
+
 ENV FLASK_APP=app.main
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
+
+# ✅ Use shell script
+CMD ["/bin/bash", "start.sh"]
