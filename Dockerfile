@@ -11,11 +11,9 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --upgrade pip
 
-# Copy and install requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app code
 COPY . .
 
 RUN mkdir -p instance logs audio_uploads vector_stores/faiss
@@ -24,8 +22,5 @@ ENV FLASK_APP=app.main
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
 
-CMD gunicorn "app:create_app()" \
-    --bind 0.0.0.0:${PORT:-5000} \
-    --workers 2 \
-    --timeout 120 \
-    --log-level info
+# ✅ FIXED: use shell form (not array form) so $PORT resolves
+CMD gunicorn "app:create_app()" --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --log-level info
